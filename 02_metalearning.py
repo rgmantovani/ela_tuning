@@ -3,6 +3,7 @@
 # ---------------------------------
 
 import os
+import itertools
 import pandas as pd
 from scipy.io import arff
 
@@ -16,6 +17,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.naive_bayes import GaussianNB
 from sklearn.linear_model import LogisticRegression
+from xgboost import XGBClassifier
 
 # Experimental evaluation
 from sklearn.model_selection import LeaveOneOut, cross_val_predict
@@ -78,12 +80,15 @@ datasets = {
 
 algorithms = {
     "SVM": SVC(probability=True),
-    "RandomForest": RandomForestClassifier(),
+    "RandomForest": RandomForestClassifier(random_state=42),
     "KNN": KNeighborsClassifier(),
-    "DecisionTree": DecisionTreeClassifier(),
+    "DecisionTree": DecisionTreeClassifier(random_state=42),
     "NaiveBayes": GaussianNB(),
-    "LogisticRegression": LogisticRegression(max_iter=1000)
+    "LogisticRegression": LogisticRegression(max_iter=1000, random_state=42),
+    "XGBoost": XGBClassifier(random_state=42)
 }
+
+correlation_thresholds = [0.80, 0.85, 0.90, 0.95]
 
 loo = LeaveOneOut()
 
@@ -91,24 +96,33 @@ all_predictions = []
 evaluation_results = []
 
 # ---------------------------------
-# TRAINING + PROBABILITY PREDICTION
+# Experiment
 # ---------------------------------
 
-for dataset_name, df in datasets.items():
+combinations = itertools.product(
+    datasets.items(),
+    algorithms.items(),
+    correlation_thresholds
+)
 
-    print(f"\n===== {dataset_name} =====")
+for (dataset_name, df), (alg_name, model), corr_threshold in combinations:
+
+    print("\n======================================")
+    print(f"Dataset: {dataset_name}")
+    print(f"Algorithm: {alg_name}")
+    print(f"Correlation Threshold: {corr_threshold}")
+    print("======================================")
 
     # Features and target
+    y = df[TARGET_COLUMN]
     X = df.drop(columns=[TARGET_COLUMN])
-    # y = df[TARGET_COLUMN]
-
     original_shape = X.shape
 
     # Remove constant / near-constant features
     data = remove_constant_features(X, threshold=0)
 
     # Remove highly correlated features
-    data = remove_correlated_features(data, threshold=0.95)
+    data = remove_correlated_features(data, threshold=corr_threshold)
 
     print(f"\n[Shape] Original: {original_shape} → After preprocessing: {data.shape}")
     print(f"[Features Used] {list(data.columns)}\n")
@@ -129,83 +143,82 @@ for dataset_name, df in datasets.items():
 
     n_classes = len(le.classes_)
 
-    for alg_name, model in algorithms.items():
+    # Pipeline with standard scaler
+    pipeline = Pipeline([("scaler", StandardScaler()), ("model", model)])
 
-        print(f"Running {alg_name}...")
+    # LOOCV with probability predictions
+    probs = cross_val_predict(pipeline, X, y_encoded, cv=loo, method="predict_proba", n_jobs=4)
+    y_pred = np.argmax(probs, axis=1)
 
-        # Pipeline
-        pipeline = Pipeline([
-            ("scaler", StandardScaler()),
-            ("model", model)
-        ])
+    # ---------------------------------
+    # METRICS
+    # ---------------------------------
 
-        probs = cross_val_predict(pipeline, X, y_encoded, cv=loo, method="predict_proba", n_jobs=-1)
+    fscore = f1_score(y_encoded, y_pred, average="weighted")
+    bal_acc = balanced_accuracy_score(y_encoded, y_pred)
 
-        # Predicted classes
-        y_pred = np.argmax(probs, axis=1)
+    try:
+        if n_classes == 2:
+            auc = roc_auc_score(y_encoded, probs[:, 1])
+        else:
+            auc = roc_auc_score(y_encoded, probs, multi_class="ovr", average="weighted")
 
-        # ---------------------------------
-        # EVALUATION METRICS
-        # ---------------------------------
+    except Exception:
+        auc = np.nan
 
-        fscore = f1_score(y_encoded, y_pred, average="weighted")
-        bal_acc = balanced_accuracy_score(y_encoded, y_pred)
-        
-        # AUC
-        try:
-            if n_classes == 2:
-                auc = roc_auc_score(y_encoded, probs[:, 1])
-            else:
-                auc = roc_auc_score(y_encoded, probs, multi_class="ovr", average="weighted")
-        except Exception:
-            auc = np.nan
+    # ---------------------------------
+    # STORE METRICS
+    # ---------------------------------
 
-        evaluation_results.append({
+    evaluation_results.append({
+        "Dataset": dataset_name,
+        "Algorithm": alg_name,
+        "CorrelationThreshold": corr_threshold,
+        "NumFeatures": X.shape[1],
+        "F1Score": fscore,
+        "BalancedAccuracy": bal_acc,
+        "AUC": auc
+    })
+
+    # ---------------------------------
+    # STORE PREDICTIONS
+    # ---------------------------------
+
+    for i in range(len(y_encoded)):
+
+        row = {
             "Dataset": dataset_name,
             "Algorithm": alg_name,
-            "F1Score": fscore,
-            "BalancedAccuracy": bal_acc,
-            "AUC": auc
-        })
+            "CorrelationThreshold": corr_threshold,
+            "TrueLabel": le.inverse_transform([y_encoded[i]])[0],
+            "PredictedLabel": le.inverse_transform([y_pred[i]])[0]
+        }
 
-        # ---------------------------------
-        # STORE SAMPLE PREDICTIONS
-        # ---------------------------------
+        for class_idx, class_name in enumerate(le.classes_):
 
-        for i in range(len(y_encoded)):
+            row[f"Prob_{class_name}"] = probs[i][class_idx]
 
-            row = {
-                "Dataset": dataset_name,
-                "Algorithm": alg_name,
-                "TrueLabel": le.inverse_transform([y_encoded[i]])[0],
-                "PredictedLabel": le.inverse_transform([y_pred[i]])[0]
-            }
-
-            for class_idx, class_name in enumerate(le.classes_):
-                row[f"Prob_{class_name}"] = probs[i][class_idx]
-
-            all_predictions.append(row)
+        all_predictions.append(row)
 
 # ---------------------------------
-# FINAL DATAFRAMES
+# Saving results
 # ---------------------------------
 
 predictions_df = pd.DataFrame(all_predictions)
 metrics_df = pd.DataFrame(evaluation_results)
 
-# ---------------------------------
-# SHOW RESULTS
-# ---------------------------------
+predictions_df.to_csv(
+    "results/loo_probabilities.csv",
+    index=False
+)
 
-print("\n===== METRICS =====")
-print(metrics_df)
+metrics_df.to_csv(
+    "results/loo_metrics.csv",
+    index=False
+)
 
-print("\n===== PREDICTIONS =====")
-print(predictions_df.head())
+print("\nFinished!")
+print(metrics_df.head())
 
 # ---------------------------------
-# SAVE RESULTS
 # ---------------------------------
-
-predictions_df.to_csv("results/loo_probabilities.csv", index=False)
-metrics_df.to_csv("results/loo_metrics.csv", index=False)
