@@ -14,7 +14,7 @@ if __name__ == "__main__":
     # Reading landscape features
     # -----------------------------
 
-    landscape_files  = list(Path("data/landscapeInputs/classif.svm/").rglob("*.csv"))  # filter by extension
+    landscape_files  = list(Path("data/landscapeInputs/classif.svm/").rglob("*.csv")) 
 
     # for debug 
     # landscape_files = landscape_files[0:5]
@@ -43,15 +43,12 @@ if __name__ == "__main__":
         extractor_kwargs = {"cm_grid_size": 5, "gp_max_fit": 200},
     )
 
-    # print(f"  {len(dfs)} landscapes in {time.perf_counter() - t0:.2f}s "
-        #   f"using {os.cpu_count()} cores")
-
     # adding datatsets to the resultant dataframe 
     result['dataset'] = datasets
     
-    # ──────────────────────────────────────────
-    # ── Save result  
-    # ──────────────────────────────────────────
+    # -----------------------------
+    # Save result  
+    # -----------------------------
 
     result.to_csv("data/ela_svm_hyperspace_feautures.csv", index=False)
     print("\nSaved: ela_svm_hyperspace_feautures.csv")
