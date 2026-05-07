@@ -1,0 +1,5 @@
+ela/
+*.DS_Store
+data/tunedData
+__pycache__
+*.pyc
