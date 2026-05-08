@@ -1,8 +1,15 @@
 # ---------------------------------
+# ---------------------------------
+
+# Usage:
+# python 02_metalearning.py --seed 42 > results/execution_seed_42.log 2>&1
+
+# ---------------------------------
 # Required Python packages
 # ---------------------------------
 
 import os
+import argparse
 import itertools
 import pandas as pd
 from scipy.io import arff
@@ -30,6 +37,25 @@ from sklearn.metrics import (
     roc_auc_score,
     balanced_accuracy_score
 )
+
+# ---------------------------------
+# COMMAND LINE ARGUMENT
+# ---------------------------------
+
+parser = argparse.ArgumentParser()
+
+parser.add_argument(
+    "--seed",
+    type=int,
+    default=42,
+    help="Random state seed"
+)
+
+args = parser.parse_args()
+
+SEED = args.seed
+
+print(f"\nUsing random seed: {SEED}")
 
 # ---------------------------------
 # CREATE RESULTS DIRECTORY
@@ -79,13 +105,14 @@ datasets = {
 }
 
 algorithms = {
-    "SVM": SVC(probability=True),
-    "RandomForest": RandomForestClassifier(random_state=42),
+    "SVM_Linear": SVC(kernel="linear", probability=True, random_state=SEED    ),
+    "SVM_RBF": SVC(kernel="rbf", probability=True, random_state=SEED),
+    "RandomForest": RandomForestClassifier(random_state=SEED),
     "KNN": KNeighborsClassifier(),
-    "DecisionTree": DecisionTreeClassifier(random_state=42),
+    "DecisionTree": DecisionTreeClassifier(random_state=SEED),
     "NaiveBayes": GaussianNB(),
-    "LogisticRegression": LogisticRegression(max_iter=1000, random_state=42),
-    "XGBoost": XGBClassifier(random_state=42)
+    "LogisticRegression": LogisticRegression(max_iter=1000, random_state=SEED),
+    "XGBoost": XGBClassifier(random_state=SEED)
 }
 
 correlation_thresholds = [0.80, 0.85, 0.90, 0.95]
@@ -207,18 +234,15 @@ for (dataset_name, df), (alg_name, model), corr_threshold in combinations:
 predictions_df = pd.DataFrame(all_predictions)
 metrics_df = pd.DataFrame(evaluation_results)
 
-predictions_df.to_csv(
-    "results/loo_probabilities.csv",
-    index=False
-)
+predictions_file = (f"results/loo_probabilities_seed_{SEED}.csv")
+metrics_file = (f"results/loo_metrics_seed_{SEED}.csv")
 
-metrics_df.to_csv(
-    "results/loo_metrics.csv",
-    index=False
-)
+predictions_df.to_csv(predictions_file, index=False)
+metrics_df.to_csv(metrics_file, index=False)
 
 print("\nFinished!")
-print(metrics_df.head())
+print(f"Predictions saved to: {predictions_file}")
+print(f"Metrics saved to: {metrics_file}")
 
 # ---------------------------------
 # ---------------------------------
