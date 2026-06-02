@@ -199,3 +199,11 @@ pip install numpy pandas scipy scikit-learn xgboost
 ```r
 install.packages(c("ggplot2", "reshape2"))
 ```
+
+---
+
+## Contact
+
+**Rafael Gomes Mantovani**
+Universidade Tecnológica Federal do Paraná (UTFPR) — campus Apucarana
+✉ [rafaelmantovani@utfpr.edu.br](mailto:rafaelmantovani@utfpr.edu.br)
