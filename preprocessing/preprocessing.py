@@ -1,12 +1,6 @@
-# ─────────────────────────────────────────────────────────────────────────────
-# ─────────────────────────────────────────────────────────────────────────────]
-
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import MinMaxScaler
 
-# ─────────────────────────────────────────────────────────────────────────────
-# ─────────────────────────────────────────────────────────────────────────────
 
 def remove_constant_features(df: pd.DataFrame, threshold: float = 0.0) -> pd.DataFrame:
     variances = df.var(numeric_only=True)
@@ -16,8 +10,6 @@ def remove_constant_features(df: pd.DataFrame, threshold: float = 0.0) -> pd.Dat
         print(f"[Constant Features] Removed: {sorted(removed)}")
     return df[cols_to_keep]
 
-# ─────────────────────────────────────────────────────────────────────────────
-# ─────────────────────────────────────────────────────────────────────────────
 
 def remove_correlated_features(df: pd.DataFrame, threshold: float = 0.95) -> pd.DataFrame:
     corr_matrix = df.corr(numeric_only=True).abs()
@@ -31,16 +23,3 @@ def remove_correlated_features(df: pd.DataFrame, threshold: float = 0.95) -> pd.
     if cols_to_drop:
         print(f"[Correlated Features] Removed (threshold={threshold}): {sorted(cols_to_drop)}")
     return df.drop(columns=cols_to_drop)
-
-# ─────────────────────────────────────────────────────────────────────────────
-# ─────────────────────────────────────────────────────────────────────────────
-
-def normalize_features(df: pd.DataFrame) -> pd.DataFrame:
-    numeric_cols = df.select_dtypes(include=[np.number]).columns
-    scaler = MinMaxScaler()
-    df_normalized = df.copy()
-    df_normalized[numeric_cols] = scaler.fit_transform(df[numeric_cols])
-    return df_normalized
-
-# ─────────────────────────────────────────────────────────────────────────────
-# ─────────────────────────────────────────────────────────────────────────────
