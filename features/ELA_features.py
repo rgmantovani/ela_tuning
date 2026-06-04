@@ -547,9 +547,8 @@ def extract_from_dataframe(
         data = [data]
     
     rows = []
-    for (i, df) in enumerate(data):
-        print("%d/%d - %s\n" % (i+1, len(datasets), datasets[i]))
-        # print(df)
+    for i, df in enumerate(data):
+        print(f"{i+1}/{len(datasets)} - {datasets[i]}")
 
         X = df[x_cols].to_numpy(dtype=float)
         y = df[y_col].to_numpy(dtype=float)
@@ -590,8 +589,8 @@ def parallel_extract_from_dataframe(
 ) -> pd.DataFrame:
  
     extractor_kwargs = extractor_kwargs or {}
-    n_workers        = 5 #n_workers or os.cpu_count()
- 
+    n_workers        = n_workers or os.cpu_count()
+
     if isinstance(data, pd.DataFrame):
         data = [data]
   

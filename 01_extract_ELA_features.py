@@ -1,38 +1,18 @@
-# -----------------------------------------------
-# -----------------------------------------------
-
-import time
+import pandas as pd
 from pathlib import Path
-from features.ELA_features import *
-
-# -----------------------------------------------
-# -----------------------------------------------
+from features.ELA_features import extract_from_dataframe
 
 if __name__ == "__main__":
 
-    # -----------------------------
-    # Reading landscape features
-    # -----------------------------
-
-    landscape_files  = list(Path("data/landscapeInputs/classif.svm/").rglob("*.csv")) 
-
-    # for debug 
-    # landscape_files = landscape_files[0:5]
-
-    # -----------------------------
-    # -----------------------------
+    landscape_files = list(Path("data/landscapeInputs/classif.svm/").rglob("*.csv"))
 
     print("\n" + "═" * 60)
     print("  Extract_from_dataframe")
     print("═" * 60)
 
-    # reading all data frames with input landcapes
     dfs = [pd.read_csv(p) for p in landscape_files]
-
     datasets = [str(s).split("/")[3].replace(".csv", "") for s in landscape_files]
-    
-    # t0 = time.perf_counter()
-    # result = parallel_extract_from_dataframe(
+
     result = extract_from_dataframe(
         data             = dfs,
         x_cols           = ["cost", "gamma"],
@@ -43,15 +23,6 @@ if __name__ == "__main__":
         extractor_kwargs = {"cm_grid_size": 5, "gp_max_fit": 200},
     )
 
-    # adding datatsets to the resultant dataframe 
     result['dataset'] = datasets
-    
-    # -----------------------------
-    # Save result  
-    # -----------------------------
-
-    result.to_csv("data/ela_svm_hyperspace_feautures.csv", index=False)
-    print("\nSaved: ela_svm_hyperspace_feautures.csv")
-
-# -----------------------------------------------
-# -----------------------------------------------
+    result.to_csv("data/ela_svm_hyperspace_features.csv", index=False)
+    print("\nSaved: ela_svm_hyperspace_features.csv")
