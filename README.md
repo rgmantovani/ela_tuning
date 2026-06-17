@@ -32,6 +32,19 @@ data/landscapeInputs/classif.svm/*.csv
             │
             ▼
   plots/hyperspaces/*.pdf
+            │
+            ▼
+  04_shap_analysis.py
+            │
+            ▼
+  tmp/shap_values.csv
+  tmp/shap_X.csv
+            │
+            ▼
+  05_automated_analysis.R
+            │
+            ▼
+  plots/analysis/*.pdf
 ```
 
 ---
@@ -159,13 +172,82 @@ source("03_automatic_plotting.R")
 
 ---
 
+## Step 4 — SHAP Analysis
+
+**Script:** `04_shap_analysis.py`
+
+Trains XGBoost on the ELA meta-dataset using the best experimental setup (τ = 0.95) and computes SHAP values to explain individual predictions.
+
+### Input
+
+| Path | Description |
+|------|-------------|
+| `data/ela_svm_metadataset.csv` | ELA meta-dataset produced by Step 2. |
+
+### Output
+
+| Path | Description |
+|------|-------------|
+| `tmp/shap_values.csv` | SHAP values matrix (one row per instance, one column per feature). |
+| `tmp/shap_X.csv` | Feature matrix after preprocessing (used by Step 5 for plotting). |
+
+### How to run
+
+```bash
+python3 04_shap_analysis.py
+```
+
+---
+
+## Step 5 — Automated Analysis Plots
+
+**Script:** `05_automated_analysis.R`
+
+Generates all analysis PDFs from the experimental results: metric distributions, paired comparisons, heatmaps, feature importances, and SHAP visualisations.
+
+### Input
+
+| Path | Description |
+|------|-------------|
+| `results/loo_metrics_seed_*.csv` | Metric files produced by Step 2 (one per seed). |
+| `tmp/shap_values.csv` | SHAP values produced by Step 4. |
+| `tmp/shap_X.csv` | Feature matrix produced by Step 4. |
+
+### Output
+
+| Path | Description |
+|------|-------------|
+| `plots/analysis/1_auc_by_dataset.pdf` | Violin + boxplot: AUC distribution by meta-dataset. |
+| `plots/analysis/2_paired_auc.pdf` | Paired dot plot: ELA vs Baseline per algorithm × threshold. |
+| `plots/analysis/3_auc_by_algorithm.pdf` | Grouped barplot with error bars by algorithm. |
+| `plots/analysis/4_heatmap_alg_threshold.pdf` | Heatmap: algorithm × threshold coloured by AUC. |
+| `plots/analysis/5_auc_vs_threshold.pdf` | Line + ribbon: AUC vs correlation threshold per algorithm. |
+| `plots/analysis/6_all_metrics_facet.pdf` | Facet grid: F1, BAC, and AUC by algorithm. |
+| `plots/analysis/7_seed_stability.pdf` | Seed stability for stochastic algorithms. |
+| `plots/analysis/8_xgboost_top10_features.pdf` | Top-10 features by XGBoost gain importance. |
+| `plots/analysis/9_top10_features_by_class.pdf` | Distribution of top-10 features split by class. |
+| `plots/analysis/10_shap_beeswarm.pdf` | SHAP beeswarm plot coloured by feature value. |
+| `plots/analysis/11_shap_bar.pdf` | Mean \|SHAP\| bar chart for top-10 features. |
+
+### How to run
+
+```bash
+Rscript 05_automated_analysis.R
+```
+
+> **Note:** run `04_shap_analysis.py` before `05_automated_analysis.R` to generate the SHAP plots. If `tmp/shap_values.csv` is missing, the SHAP plots are skipped automatically.
+
+---
+
 ## Project Structure
 
 ```
 ela_tuning/
 ├── 01_extract_ELA_features.py   # Step 1: ELA feature extraction
 ├── 02_metalearning.py           # Step 2: meta-learning experiment
-├── 03_automatic_plotting.R      # Step 3: visualisation and aggregation
+├── 03_automatic_plotting.R      # Step 3: hyperspace visualisation
+├── 04_shap_analysis.py          # Step 4: SHAP explanation of XGBoost
+├── 05_automated_analysis.R      # Step 5: analysis plots
 │
 ├── features/
 │   └── ELA_features.py          # ELA extractor classes and public API
@@ -181,7 +263,10 @@ ela_tuning/
 │   └── datasets/                          # Dataset metadata and OpenML info
 │
 ├── results/                     # Output of Step 2 (metrics, probabilities, logs)
-└── plots/                       # Output of Step 3 (PDF hyperspace plots)
+├── tmp/                         # Intermediate files (SHAP values, feature matrix)
+└── plots/
+    ├── hyperspaces/             # Output of Step 3 (PDF hyperspace plots)
+    └── analysis/                # Output of Step 5 (PDF analysis plots)
 ```
 
 ---
@@ -191,7 +276,7 @@ ela_tuning/
 ### Python
 
 ```bash
-pip install numpy pandas scipy scikit-learn xgboost
+pip install numpy pandas scipy scikit-learn xgboost shap
 ```
 
 ### R
