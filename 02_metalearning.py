@@ -58,6 +58,8 @@ df_features = pd.read_csv("data/ela_svm_hyperspace_features.csv")
 ela_metadataset = pd.merge(df_baseline[["dataset", "Class"]], df_features, on="dataset")
 ela_metadataset.to_csv("data/ela_svm_metadataset.csv", index=False)
 
+df_combined = pd.read_csv("data/combined_svm_metadataset.csv")
+
 # ---------------------------------
 # Experiment Configuration
 # ---------------------------------
@@ -67,6 +69,7 @@ TARGET_COLUMN = "Class"
 datasets = {
     "Baseline":        df_baseline,
     "Ela_metadataset": ela_metadataset,
+    "Combined":        df_combined,
 }
 
 algorithms = {

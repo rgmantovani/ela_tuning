@@ -9,33 +9,40 @@ from preprocessing.preprocessing import remove_constant_features, remove_correla
 TMP_DIR = "tmp"
 os.makedirs(TMP_DIR, exist_ok=True)
 
-# Best setup: ELA Metadataset, tau = 0.95
-THRESHOLD = 0.95
+configs = [
+    {"name": "ela",      "file": "data/ela_svm_metadataset.csv",    "threshold": 0.95},
+    {"name": "combined", "file": "data/combined_svm_metadataset.csv", "threshold": 0.85},
+]
 
-df = pd.read_csv("data/ela_svm_metadataset.csv")
-X = df.drop(columns=["dataset", "Class"])
-y = LabelEncoder().fit_transform(df["Class"])
+for cfg in configs:
+    print(f"\n{'='*50}")
+    print(f"Dataset: {cfg['name']}  |  tau = {cfg['threshold']}")
+    print('='*50)
 
-X = remove_constant_features(X)
-X = remove_correlated_features(X, threshold=THRESHOLD)
+    df = pd.read_csv(cfg["file"])
+    X = df.drop(columns=["dataset", "Class"])
+    y = LabelEncoder().fit_transform(df["Class"])
 
-print(f"Features after preprocessing (tau={THRESHOLD}): {X.shape[1]}")
+    X = remove_constant_features(X)
+    X = remove_correlated_features(X, threshold=cfg["threshold"])
 
-model = XGBClassifier(random_state=42, eval_metric="logloss", verbosity=0)
-model.fit(X, y)
+    print(f"Features after preprocessing: {X.shape[1]}")
 
-explainer = shap.TreeExplainer(model)
-shap_values = explainer.shap_values(X)
+    model = XGBClassifier(random_state=42, eval_metric="logloss", verbosity=0)
+    model.fit(X, y)
 
-print("SHAP values shape:", shap_values.shape)
+    explainer = shap.TreeExplainer(model)
+    shap_values = explainer.shap_values(X)
 
-mean_shap = pd.Series(np.abs(shap_values).mean(axis=0), index=X.columns)
-print("\nTop 10 features by mean |SHAP|:")
-print(mean_shap.sort_values(ascending=False).head(10).to_string())
+    mean_shap = pd.Series(np.abs(shap_values).mean(axis=0), index=X.columns)
+    print("\nTop 10 features by mean |SHAP|:")
+    print(mean_shap.sort_values(ascending=False).head(10).to_string())
 
-pd.DataFrame(shap_values, columns=X.columns).to_csv("tmp/shap_values.csv", index=False)
-X.to_csv("tmp/shap_X.csv", index=False)
+    pd.DataFrame(shap_values, columns=X.columns).to_csv(
+        f"{TMP_DIR}/shap_values_{cfg['name']}.csv", index=False)
+    X.to_csv(f"{TMP_DIR}/shap_X_{cfg['name']}.csv", index=False)
 
-print("\nSHAP values saved to tmp/shap_values.csv")
-print("Feature matrix saved to tmp/shap_X.csv")
-print("Run 04_automated_analysis.R to generate the PDF plots.")
+    print(f"\nSaved: tmp/shap_values_{cfg['name']}.csv")
+    print(f"Saved: tmp/shap_X_{cfg['name']}.csv")
+
+print("\nDone. Run 05_automated_analysis.R to generate the PDF plots.")
