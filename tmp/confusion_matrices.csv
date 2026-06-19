@@ -1,0 +1,13 @@
+dataset,true,pred,count,pct
+Baseline,Defaults,Defaults,14.9,31.7
+Baseline,Defaults,Tuning,32.1,68.3
+Baseline,Tuning,Defaults,9.7,8.0
+Baseline,Tuning,Tuning,112.3,92.0
+Ela_metadataset,Defaults,Defaults,20.0,42.6
+Ela_metadataset,Defaults,Tuning,27.0,57.4
+Ela_metadataset,Tuning,Defaults,11.0,9.0
+Ela_metadataset,Tuning,Tuning,111.0,91.0
+Combined,Defaults,Defaults,23.0,48.9
+Combined,Defaults,Tuning,24.0,51.1
+Combined,Tuning,Defaults,12.0,9.8
+Combined,Tuning,Tuning,110.0,90.2
