@@ -2,7 +2,7 @@
 
 This project investigates whether **Exploratory Landscape Analysis (ELA) features** extracted from SVM hyperparameter search spaces can improve algorithm selection/configuration via meta-learning.
 
-The pipeline is composed of three sequential steps, each corresponding to a numbered script.
+The pipeline is composed of four sequential steps, each corresponding to a numbered script.
 
 ---
 
@@ -18,6 +18,7 @@ data/landscapeInputs/classif.svm/*.csv
   data/ela_svm_hyperspace_features.csv
             │
   data/classif_svm_169d_95_average.arff
+  data/combined_svm_metadataset.csv
             │
             ▼
   02_metalearning.py
@@ -28,10 +29,20 @@ data/landscapeInputs/classif.svm/*.csv
   results/loo_probabilities_seed_<SEED>.csv
             │
             ▼
-  03_automatic_plotting.R
+  03_shap_analysis.py
+            │
+            ▼
+  tmp/shap_values_ela.csv
+  tmp/shap_X_ela.csv
+  tmp/shap_values_combined.csv
+  tmp/shap_X_combined.csv
+            │
+            ▼
+  04_plotting.R
             │
             ▼
   plots/hyperspaces/*.pdf
+  plots/analysis/*.pdf
 ```
 
 ---
@@ -57,7 +68,7 @@ Reads the pre-sampled SVM hyperparameter landscapes (one CSV per dataset) and co
 ### How to run
 
 ```bash
-python 01_extract_ELA_features.py
+python3 01_extract_ELA_features.py
 ```
 
 ---
@@ -66,41 +77,37 @@ python 01_extract_ELA_features.py
 
 **Script:** `02_metalearning.py`
 
-Builds the ELA meta-dataset by merging the extracted features with the baseline performance data, then evaluates seven classifiers under Leave-One-Out Cross-Validation (LOOCV) on two meta-datasets: the **Baseline** (network/graph features only) and the **ELA meta-dataset** (ELA features appended).
+Builds the ELA meta-dataset by merging the extracted features with the baseline performance data, then evaluates eight classifiers under Leave-One-Out Cross-Validation (LOOCV) on three meta-datasets: **Baseline**, **ELA meta-dataset**, and **Combined**.
 
 ### Input
 
 | Path | Description |
 |------|-------------|
-| `data/classif_svm_169d_95_average.arff` | Baseline meta-dataset with 169 network/graph features and a binary class label (`Defaults` vs `Tuning`). One row per dataset. |
+| `data/classif_svm_169d_95_average.arff` | Baseline meta-dataset with 169 network/graph features and a binary class label (`Defaults` vs `Tuning`). |
 | `data/ela_svm_hyperspace_features.csv` | ELA features produced by Step 1. |
+| `data/combined_svm_metadataset.csv` | Pre-built meta-dataset combining baseline and ELA features. |
 
 ### Output
 
 | Path | Description |
 |------|-------------|
 | `data/ela_svm_metadataset.csv` | Merged meta-dataset combining the class label from the baseline ARFF with the ELA features. |
-| `results/loo_metrics_seed_<SEED>.csv` | Per-combination evaluation metrics (F1, Balanced Accuracy, AUC) across all algorithms, datasets, and correlation thresholds. |
+| `results/loo_metrics_seed_<SEED>.csv` | Per-combination evaluation metrics (F1, Balanced Accuracy, AUC) across all algorithms, meta-datasets, and correlation thresholds. |
 | `results/loo_probabilities_seed_<SEED>.csv` | Per-instance predicted probabilities and true/predicted labels for every LOOCV fold. |
 | `results/execution_seed_<SEED>.log` | Full console output captured during execution. |
 
 ### How to run
 
-Run once per random seed. Results across seeds are aggregated in Step 3.
-
 ```bash
 # single seed
-python 02_metalearning.py --seed 42
-
-# capture log (recommended)
-python 02_metalearning.py --seed 42 > results/execution_seed_42.log 2>&1
+python3 02_metalearning.py --seed 42 > results/execution_seed_42.log 2>&1
 ```
 
 To reproduce the full experiment (seeds used: 0–7, 42, 51):
 
 ```bash
 for SEED in 0 1 2 3 4 5 6 7 42 51; do
-  python 02_metalearning.py --seed $SEED > results/execution_seed_${SEED}.log 2>&1
+  python3 02_metalearning.py --seed $SEED > results/execution_seed_${SEED}.log 2>&1 &
 done
 ```
 
@@ -117,6 +124,14 @@ done
 | `LogisticRegression` | Logistic Regression |
 | `XGBoost` | Gradient Boosted Trees |
 
+### Meta-datasets
+
+| Identifier | Description |
+|------------|-------------|
+| `Baseline` | 169 network/graph meta-features only |
+| `Ela_metadataset` | ELA features extracted from SVM hyperparameter landscapes |
+| `Combined` | Baseline + ELA features concatenated |
+
 ### Preprocessing applied per run
 
 1. Remove constant/near-constant features.
@@ -125,36 +140,70 @@ done
 
 ---
 
-## Step 3 — Automatic Plotting
+## Step 3 — SHAP Analysis
 
-**Script:** `03_automatic_plotting.R`
+**Script:** `03_shap_analysis.py`
 
-Generates two sets of outputs: (1) scatter plots of each SVM hyperparameter landscape coloured by Balanced Accuracy; (2) a summary table of average metrics (mean ± SD across seeds) ordered by AUC.
+Trains XGBoost on the ELA and Combined meta-datasets using the best experimental setup and computes SHAP values to explain individual predictions.
 
 ### Input
 
 | Path | Description |
 |------|-------------|
-| `data/landscapeInputs/classif.svm/*.csv` | Same landscape CSVs used in Step 1. |
-| `results/loo_metrics_seed_*.csv` | All metric files produced by Step 2 (one per seed). |
+| `data/ela_svm_metadataset.csv` | ELA meta-dataset produced by Step 2. |
+| `data/combined_svm_metadataset.csv` | Combined meta-dataset. |
 
 ### Output
 
 | Path | Description |
 |------|-------------|
-| `plots/hyperspaces/<dataset>_hyperspace.pdf` | Scatter plot of the SVM hyperparameter space for each dataset, coloured by BAC (red = 0, white = 0.5, blue = 1). |
-| `df_full` (in memory) | Data frame with averaged metrics across seeds, ordered by descending AUC. Print or export as needed. |
+| `tmp/shap_values_ela.csv` | SHAP values for the ELA meta-dataset. |
+| `tmp/shap_X_ela.csv` | Preprocessed feature matrix for the ELA meta-dataset. |
+| `tmp/shap_values_combined.csv` | SHAP values for the Combined meta-dataset. |
+| `tmp/shap_X_combined.csv` | Preprocessed feature matrix for the Combined meta-dataset. |
 
 ### How to run
 
 ```bash
-Rscript 03_automatic_plotting.R
+python3 03_shap_analysis.py
 ```
 
-Or interactively inside an R session:
+---
 
-```r
-source("03_automatic_plotting.R")
+## Step 4 — Plotting
+
+**Script:** `04_plotting.R`
+
+Generates all plots: scatter plots of each SVM hyperparameter landscape and all analysis figures from the experimental results, including metric distributions, paired comparisons, heatmaps, and SHAP visualisations.
+
+> **Note:** run `03_shap_analysis.py` before `04_plotting.R` to generate the SHAP plots. If the SHAP files are missing from `tmp/`, the SHAP plots are skipped automatically.
+
+### Input
+
+| Path | Description |
+|------|-------------|
+| `data/landscapeInputs/classif.svm/*.csv` | Landscape CSVs used in Step 1. |
+| `results/loo_metrics_seed_*.csv` | Metric files produced by Step 2 (one per seed). |
+| `tmp/shap_values_ela.csv` | SHAP values produced by Step 3. |
+| `tmp/shap_X_ela.csv` | Feature matrix produced by Step 3. |
+| `tmp/shap_values_combined.csv` | SHAP values produced by Step 3. |
+| `tmp/shap_X_combined.csv` | Feature matrix produced by Step 3. |
+
+### Output
+
+| Path | Description |
+|------|-------------|
+| `plots/hyperspaces/<dataset>_hyperspace.pdf` | Scatter plot of the SVM hyperparameter space for each dataset, coloured by BAC. |
+| `plots/analysis/1_auc_by_dataset.pdf` | Violin + boxplot: AUC distribution by meta-dataset. |
+| `plots/analysis/2_paired_auc.pdf` | Paired dot plot: ELA/Combined vs Baseline per algorithm × threshold. |
+| `plots/analysis/4_heatmap_alg_threshold.pdf` | Heatmap: algorithm × threshold coloured by mean AUC. |
+| `plots/analysis/10_shap_ela.pdf` | SHAP beeswarm + bar chart for the ELA meta-dataset. |
+| `plots/analysis/12_shap_combined.pdf` | SHAP beeswarm + bar chart for the Combined meta-dataset. |
+
+### How to run
+
+```bash
+Rscript 04_plotting.R
 ```
 
 ---
@@ -164,8 +213,9 @@ source("03_automatic_plotting.R")
 ```
 ela_tuning/
 ├── 01_extract_ELA_features.py   # Step 1: ELA feature extraction
-├── 02_metalearning.py           # Step 2: meta-learning experiment
-├── 03_automatic_plotting.R      # Step 3: visualisation and aggregation
+├── 02_metalearning.py           # Step 2: meta-learning experiment (LOOCV)
+├── 03_shap_analysis.py          # Step 3: SHAP explanation of XGBoost
+├── 04_plotting.R                # Step 4: all plots (hyperspaces + analysis)
 │
 ├── features/
 │   └── ELA_features.py          # ELA extractor classes and public API
@@ -175,13 +225,18 @@ ela_tuning/
 │
 ├── data/
 │   ├── classif_svm_169d_95_average.arff   # Baseline meta-dataset
+│   ├── combined_svm_metadataset.csv       # Combined meta-dataset
 │   ├── ela_svm_hyperspace_features.csv    # Output of Step 1
 │   ├── ela_svm_metadataset.csv            # Output of Step 2
 │   ├── landscapeInputs/classif.svm/       # Input landscapes (one CSV per dataset)
 │   └── datasets/                          # Dataset metadata and OpenML info
 │
 ├── results/                     # Output of Step 2 (metrics, probabilities, logs)
-└── plots/                       # Output of Step 3 (PDF hyperspace plots)
+├── tmp/                         # Intermediate files (SHAP values, feature matrices)
+│   └── generate_pdf_tables.py   # Utility script to generate supplementary PDF
+└── plots/
+    ├── hyperspaces/             # Output of Step 4 (PDF hyperspace plots)
+    └── analysis/                # Output of Step 4 (PDF analysis plots)
 ```
 
 ---
@@ -191,13 +246,13 @@ ela_tuning/
 ### Python
 
 ```bash
-pip install numpy pandas scipy scikit-learn xgboost
+pip install numpy pandas scipy scikit-learn xgboost shap
 ```
 
 ### R
 
 ```r
-install.packages(c("ggplot2", "reshape2"))
+install.packages(c("ggplot2", "reshape2", "patchwork", "RColorBrewer"))
 ```
 
 ---
