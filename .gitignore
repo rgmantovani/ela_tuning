@@ -3,3 +3,4 @@ ela/
 data/tunedData
 __pycache__
 *.pyc
+.Rapp.history
